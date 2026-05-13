@@ -1,0 +1,9 @@
+# Contexte = racine du dépôt (build Dokploy)
+.git
+**/coverage
+
+nextjs-sondage/node_modules
+nextjs-sondage/.next
+nextjs-sondage/.env
+nextjs-sondage/.env.*
+!nextjs-sondage/.env.example
