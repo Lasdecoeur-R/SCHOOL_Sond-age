@@ -43,7 +43,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/node_modules/dotenv ./node_module
 USER root
 # Next standalone : `const hostname = process.env.HOSTNAME || …` — K8s/Dokploy
 # injectent HOSTNAME (nom du pod) et écrasent l’ENV de l’image → écoute injoignable → 502.
-RUN sed -i "s|const hostname = process.env.HOSTNAME || '0.0.0.0'|const hostname = '0.0.0.0'|" /app/server.js \
+RUN sed -i "s#const hostname = process.env.HOSTNAME || '0.0.0.0'#const hostname = '0.0.0.0'#" /app/server.js \
   && npm install -g prisma@7.8.0 \
   && chmod +x /app/docker-entrypoint.sh
 USER nextjs
