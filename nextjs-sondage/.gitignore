@@ -31,6 +31,7 @@ yarn-error.log*
 .pnpm-debug.log*
 
 # env files (ne pas versionner les secrets)
+# Fichier local : nextjs-sondage/.env
 .env
 .env.local
 .env.development.local
@@ -46,3 +47,6 @@ yarn-error.log*
 next-env.d.ts
 
 /app/generated/prisma
+
+# Si une copie du cahier est placée dans ce dossier, ne pas la versionner
+sond'age.md

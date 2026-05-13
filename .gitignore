@@ -1,0 +1,5 @@
+# Cahier de conception à la racine du dépôt (hors dossier nextjs-sondage)
+sond'age.md
+
+# Secrets Next.js (variables locales)
+nextjs-sondage/.env
