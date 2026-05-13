@@ -44,6 +44,34 @@ export type DashboardData = {
   loadError: string | null;
 };
 
+/** Indice court dérivé de l’erreur Prisma/pg (sans exposer de secrets). */
+function hintFromDatabaseError(err: unknown): string | null {
+  const msg = err instanceof Error ? err.message : String(err);
+  const lower = msg.toLowerCase();
+  if (
+    lower.includes("does not exist") ||
+    lower.includes("n'existe pas") ||
+    (lower.includes("relation") && lower.includes("survey"))
+  ) {
+    return "Les tables semblent absentes : au démarrage du conteneur, « prisma migrate deploy » doit réussir (voir les logs). Sur Dokploy, vérifiez aussi DATABASE_URL vers le service Postgres interne.";
+  }
+  if (
+    lower.includes("econnrefused") ||
+    lower.includes("connect econnrefused") ||
+    lower.includes("p1001") ||
+    lower.includes("getaddrinfo enotfound")
+  ) {
+    return "La base ne répond pas : vérifiez DATABASE_URL (hôte = nom du service Postgres sur le réseau Dokploy, jamais localhost) et que Postgres est démarré.";
+  }
+  if (lower.includes("password authentication failed") || lower.includes("p1000")) {
+    return "Authentification refusée : utilisateur ou mot de passe dans DATABASE_URL ne correspond pas au service Postgres.";
+  }
+  if (lower.includes("ssl") || lower.includes("certificate") || lower.includes("self-signed")) {
+    return "Problème TLS : essayez d’ajouter à DATABASE_URL le paramètre sslmode=require (ou sslmode=disable si la base n’utilise pas TLS).";
+  }
+  return null;
+}
+
 const emptyDashboard = (loadError: string | null = null): DashboardData => ({
   surveyRows: [],
   completedCount: 0,
@@ -121,8 +149,13 @@ export async function getDashboardData(): Promise<DashboardData> {
     };
   } catch (err) {
     console.error("[getDashboardData]", err);
+    const hint = hintFromDatabaseError(err);
+    const fallback =
+      "Vérifiez DATABASE_URL, les logs du conteneur au démarrage (migrations Prisma), puis redéployez. En local : npm run db:migrate. Docker local : docker compose up -d --build.";
     return emptyDashboard(
-      "Impossible de lire PostgreSQL (souvent : tables absentes, migrations non appliquées). Avec Docker : reconstruisez la stack (docker compose up -d --build) — le conteneur web lance prisma migrate deploy au démarrage. En local : npm run db:migrate avec une base joignable et DATABASE_URL dans .env.",
+      hint ?
+        `Impossible de lire PostgreSQL. ${hint} Sinon : ${fallback}`
+      : `Impossible de lire PostgreSQL (connexion ou schéma). ${fallback}`,
     );
   }
 }
