@@ -42,4 +42,9 @@ if [ -n "$DATABASE_URL" ]; then
   fi
 fi
 
+# Next.js standalone utilise HOSTNAME comme adresse d’écoute (voir server.js).
+# Docker / K8s / Dokploy injectent souvent HOSTNAME = nom du conteneur → écoute
+# non joignable depuis Traefik → 502 Bad Gateway. Forcer avant le process Node.
+export HOSTNAME=0.0.0.0
+
 exec node server.js
