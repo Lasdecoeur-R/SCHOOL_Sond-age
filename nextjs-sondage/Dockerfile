@@ -17,6 +17,11 @@ ENV NEXT_TELEMETRY_DISABLED=1
 RUN DATABASE_URL="postgresql://build:build@127.0.0.1:5432/build?schema=public" npx prisma generate
 RUN npm run build
 
+FROM base AS prisma_cli
+WORKDIR /prisma
+RUN printf '%s\n' '{"private":true}' > package.json \
+  && npm install prisma@7.8.0 --omit=dev --no-audit --no-fund
+
 FROM base AS runner
 WORKDIR /app
 ENV NODE_ENV=production
@@ -30,8 +35,8 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
 # Client Prisma (output personnalisé dans app/generated)
 COPY --from=builder --chown=nextjs:nodejs /app/app/generated ./app/generated
-# Dépendance parfois absente du trace standalone : évite MODULE_NOT_FOUND au runtime
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules/@prisma/adapter-pg ./node_modules/@prisma/adapter-pg
+COPY --from=prisma_cli /prisma/node_modules /prisma/node_modules
 
 # Migrations au démarrage (PostgreSQL vide → tables + schéma)
 COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
@@ -39,16 +44,10 @@ COPY --from=builder --chown=nextjs:nodejs /app/prisma.config.ts ./prisma.config.
 COPY --from=builder --chown=nextjs:nodejs /app/scripts/docker-entrypoint.sh ./docker-entrypoint.sh
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules/dotenv ./node_modules/dotenv
 
-# CLI Prisma : global pour `prisma migrate` + paquet local dans /app/node_modules pour que
-# prisma.config.ts puisse résoudre `prisma/config` (absent du trace Next standalone).
 USER root
-# Next standalone : `const hostname = process.env.HOSTNAME || …` — K8s/Dokploy
-# injectent HOSTNAME (nom du pod) et écrasent l’ENV de l’image → écoute injoignable → 502.
 RUN sed -i "s#const hostname = process.env.HOSTNAME || '0.0.0.0'#const hostname = '0.0.0.0'#" /app/server.js \
-  && npm install prisma@7.8.0 --no-save --omit=dev --prefix /app \
-  && npm install -g prisma@7.8.0 \
   && chmod +x /app/docker-entrypoint.sh \
-  && chown -R nextjs:nodejs /app/node_modules
+  && chown -R nextjs:nodejs /prisma
 USER nextjs
 
 EXPOSE 3000

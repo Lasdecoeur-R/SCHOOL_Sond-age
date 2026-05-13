@@ -18,14 +18,16 @@ if [ -n "$DATABASE_URL" ]; then
   echo "docker-entrypoint: prisma migrate deploy (max ${MAX_ATT} essais, ${RETRY_PAUSE}s entre échecs)…"
   migrate_ok=0
   i=1
+  PRISMA_BIN="/prisma/node_modules/.bin/prisma"
   while [ "$i" -le "$MAX_ATT" ]; do
-    if command -v prisma >/dev/null 2>&1; then
-      if prisma migrate deploy; then
+    if [ -x "$PRISMA_BIN" ]; then
+      if env NODE_PATH=/prisma/node_modules "$PRISMA_BIN" migrate deploy; then
         migrate_ok=1
         echo "docker-entrypoint: migrations appliquées (tentative $i)."
         break
       fi
     else
+      echo "docker-entrypoint: $PRISMA_BIN introuvable, tentative npx…"
       if npx --yes prisma@7.8.0 migrate deploy; then
         migrate_ok=1
         echo "docker-entrypoint: migrations appliquées via npx (tentative $i)."
