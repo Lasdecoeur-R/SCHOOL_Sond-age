@@ -53,7 +53,7 @@ function hintFromDatabaseError(err: unknown): string | null {
     lower.includes("n'existe pas") ||
     (lower.includes("relation") && lower.includes("survey"))
   ) {
-    return "Les tables semblent absentes (migrations non appliquées sur cette base) ou la base n’est pas la bonne. Si Postgres est dans une autre application Dokploy, le nom d’hôte interne n’est en général pas résolu depuis votre app : placez Postgres et l’app web dans le même projet / environnement, ou suivez la doc « Connection » pour un réseau partagé. Sinon : vérifiez les logs au démarrage (prisma migrate deploy) et DATABASE_URL.";
+    return "Les tables semblent absentes : les migrations Prisma n’ont probablement pas été appliquées sur cette base (voir les logs au démarrage du conteneur web : « migrations appliquées » ou erreur). Vérifiez que DATABASE_URL reprend l’Internal Connection URL + ?schema=public.";
   }
   if (
     lower.includes("econnrefused") ||
@@ -154,7 +154,7 @@ export async function getDashboardData(): Promise<DashboardData> {
       "Vérifiez DATABASE_URL, les logs du conteneur au démarrage (migrations Prisma), puis redéployez. En local : npm run db:migrate. Docker local : docker compose up -d --build.";
     return emptyDashboard(
       hint ?
-        `Impossible de lire PostgreSQL. ${hint} Sinon : ${fallback}`
+        `Impossible de lire PostgreSQL. ${hint} ${fallback}`
       : `Impossible de lire PostgreSQL (connexion ou schéma). ${fallback}`,
     );
   }
