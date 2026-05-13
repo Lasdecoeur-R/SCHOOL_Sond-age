@@ -53,7 +53,7 @@ function hintFromDatabaseError(err: unknown): string | null {
     lower.includes("n'existe pas") ||
     (lower.includes("relation") && lower.includes("survey"))
   ) {
-    return "Les tables semblent absentes : au démarrage du conteneur, « prisma migrate deploy » doit réussir (voir les logs). Sur Dokploy, vérifiez aussi DATABASE_URL vers le service Postgres interne.";
+    return "Les tables semblent absentes (migrations non appliquées sur cette base) ou la base n’est pas la bonne. Si Postgres est dans une autre application Dokploy, le nom d’hôte interne n’est en général pas résolu depuis votre app : placez Postgres et l’app web dans le même projet / environnement, ou suivez la doc « Connection » pour un réseau partagé. Sinon : vérifiez les logs au démarrage (prisma migrate deploy) et DATABASE_URL.";
   }
   if (
     lower.includes("econnrefused") ||
