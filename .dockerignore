@@ -1,6 +1,10 @@
 # Contexte = racine du dépôt (build Dokploy)
 .git
 **/coverage
+**/.cursor
+
+# Maquettes / assets hors app (allègent le contexte si présents à la racine)
+**/stitch*/
 
 nextjs-sondage/node_modules
 nextjs-sondage/.next

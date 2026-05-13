@@ -2,31 +2,44 @@
 set -e
 cd /app
 
-# Migrations en arrière-plan : le serveur écoute tout de suite (évite 502 Traefik pendant migrate).
-# Plusieurs essais si Postgres démarre après le conteneur web (Dokploy).
+# Migrations synchrones avant Node : évite « tables absentes » au premier chargement.
+# MIGRATE_BOOT_SLEEP : pause initiale (s) pour laisser Postgres démarrer (Dokploy). 0 = aucune (docker compose local).
+# MIGRATE_MAX_ATTEMPTS / MIGRATE_RETRY_PAUSE : boucle si migrate échoue (réseau / ordre de démarrage).
 if [ -n "$DATABASE_URL" ]; then
-  (
-    set +e
-    echo "docker-entrypoint: migrations en arrière-plan (jusqu'à 25 essais, 2s entre chaque)…"
-    i=1
-    while [ "$i" -le 25 ]; do
-      if command -v prisma >/dev/null 2>&1; then
-        if prisma migrate deploy; then
-          echo "docker-entrypoint: migrations appliquées (tentative $i)."
-          exit 0
-        fi
-      else
-        if npx --yes prisma@7.8.0 migrate deploy; then
-          echo "docker-entrypoint: migrations appliquées via npx (tentative $i)."
-          exit 0
-        fi
+  BOOT_SLEEP="${MIGRATE_BOOT_SLEEP:-8}"
+  MAX_ATT="${MIGRATE_MAX_ATTEMPTS:-10}"
+  RETRY_PAUSE="${MIGRATE_RETRY_PAUSE:-3}"
+
+  if [ "$BOOT_SLEEP" != "0" ] && [ -n "$BOOT_SLEEP" ]; then
+    echo "docker-entrypoint: pause ${BOOT_SLEEP}s avant migrate (MIGRATE_BOOT_SLEEP)…"
+    sleep "$BOOT_SLEEP"
+  fi
+
+  echo "docker-entrypoint: prisma migrate deploy (max ${MAX_ATT} essais, ${RETRY_PAUSE}s entre échecs)…"
+  migrate_ok=0
+  i=1
+  while [ "$i" -le "$MAX_ATT" ]; do
+    if command -v prisma >/dev/null 2>&1; then
+      if prisma migrate deploy; then
+        migrate_ok=1
+        echo "docker-entrypoint: migrations appliquées (tentative $i)."
+        break
       fi
-      echo "docker-entrypoint: migrate tentative $i/25 échouée, pause 2s…"
-      sleep 2
-      i=$((i + 1))
-    done
-    echo "docker-entrypoint: AVERTISSEMENT — migrations non appliquées après 25 essais (vérifiez DATABASE_URL)."
-  ) &
+    else
+      if npx --yes prisma@7.8.0 migrate deploy; then
+        migrate_ok=1
+        echo "docker-entrypoint: migrations appliquées via npx (tentative $i)."
+        break
+      fi
+    fi
+    echo "docker-entrypoint: échec tentative $i/${MAX_ATT}, pause ${RETRY_PAUSE}s…"
+    sleep "$RETRY_PAUSE"
+    i=$((i + 1))
+  done
+
+  if [ "$migrate_ok" != "1" ]; then
+    echo "docker-entrypoint: AVERTISSEMENT — migrations non appliquées après ${MAX_ATT} essais. Le serveur démarre ; exécutez « prisma migrate deploy » dans le conteneur si besoin."
+  fi
 fi
 
 exec node server.js

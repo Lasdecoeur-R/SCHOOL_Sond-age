@@ -1,7 +1,12 @@
 # syntax=docker/dockerfile:1
 #
 # Racine du dépôt Git (Dokploy, etc.) : le code applicatif est dans nextjs-sondage/.
-# Pour un build local uniquement dans ce dossier, utilisez nextjs-sondage/Dockerfile.
+#
+# Dokploy (exemples) :
+#   • Dockerfile = Dockerfile, contexte = ., build path = /
+#   • ou Dockerfile = nextjs-sondage/Dockerfile, contexte = nextjs-sondage
+#
+# Variables utiles au runtime (optionnel) : MIGRATE_BOOT_SLEEP (défaut 8), MIGRATE_MAX_ATTEMPTS (10), MIGRATE_RETRY_PAUSE (3).
 
 FROM node:22-alpine AS base
 RUN apk add --no-cache libc6-compat openssl
