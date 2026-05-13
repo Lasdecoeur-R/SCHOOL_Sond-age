@@ -1,0 +1,46 @@
+# Stack complète : PostgreSQL + Next.js (build production « standalone »).
+#
+# Démarrage : docker compose up -d --build
+# URL : http://localhost:3000
+#
+# Migrations Prisma : avec la base déjà up, depuis la machine hôte (recommandé) :
+#   DATABASE_URL="postgresql://sondage:sondage_dev@localhost:5432/sondage?schema=public" npx prisma migrate deploy
+#
+# Arrêt : docker compose down  (ajouter -v pour supprimer les données Postgres)
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: sondage-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: sondage
+      POSTGRES_PASSWORD: sondage_dev
+      POSTGRES_DB: sondage
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sondage -d sondage"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: sondage-web
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgresql://sondage:sondage_dev@db:5432/sondage?schema=public
+      NODE_ENV: production
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
