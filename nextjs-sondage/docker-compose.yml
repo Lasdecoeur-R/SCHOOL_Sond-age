@@ -1,10 +1,14 @@
 # Stack complète : PostgreSQL + Next.js (build production « standalone »).
 #
 # Démarrage : docker compose up -d --build
-# URL : http://localhost:3000
+# URL : http://localhost:3000  (ou le port défini par WEB_HOST_PORT dans .env)
 #
-# Migrations Prisma : avec la base déjà up, depuis la machine hôte (recommandé) :
-#   DATABASE_URL="postgresql://sondage:sondage_dev@localhost:5432/sondage?schema=public" npx prisma migrate deploy
+# Si « bind: ... 3000 ... Only one usage » : le port 3000 est déjà pris (ex. npm run start).
+#   - Arrêtez l’autre processus, ou
+#   - Dans .env : WEB_HOST_PORT=3001  puis ouvrez http://localhost:3001
+#
+# Migrations : appliquées automatiquement au démarrage du conteneur `web` (voir scripts/docker-entrypoint.sh).
+# Hors Docker, depuis nextjs-sondage : npm run db:migrate (DATABASE_URL dans .env).
 #
 # Arrêt : docker compose down  (ajouter -v pour supprimer les données Postgres)
 
@@ -34,7 +38,7 @@ services:
     container_name: sondage-web
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "${WEB_HOST_PORT:-3000}:3000"
     environment:
       DATABASE_URL: postgresql://sondage:sondage_dev@db:5432/sondage?schema=public
       NODE_ENV: production

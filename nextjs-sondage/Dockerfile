@@ -30,10 +30,21 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
 # Client Prisma (output personnalisé dans app/generated)
 COPY --from=builder --chown=nextjs:nodejs /app/app/generated ./app/generated
+# Dépendance parfois absente du trace standalone : évite MODULE_NOT_FOUND au runtime
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/@prisma/adapter-pg ./node_modules/@prisma/adapter-pg
 
+# Migrations au démarrage (PostgreSQL vide → tables + schéma)
+COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
+COPY --from=builder --chown=nextjs:nodejs /app/prisma.config.ts ./prisma.config.ts
+COPY --from=builder --chown=nextjs:nodejs /app/scripts/docker-entrypoint.sh ./docker-entrypoint.sh
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/dotenv ./node_modules/dotenv
+
+USER root
+RUN chmod +x /app/docker-entrypoint.sh
 USER nextjs
+
 EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
 
-CMD ["node", "server.js"]
+ENTRYPOINT ["/app/docker-entrypoint.sh"]

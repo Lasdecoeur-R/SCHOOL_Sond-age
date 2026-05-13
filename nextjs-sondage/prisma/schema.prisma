@@ -1,7 +1,4 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
+// Schéma domaine « Sond'age » — voir sond'age.md (utilisateur, sondage, questions, options, votes)
 
 generator client {
   provider = "prisma-client"
@@ -10,4 +7,98 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+}
+
+/// Brouillon → publié (votes ouverts jusqu’à endsAt / clôture) → clôturé (plus de votes)
+enum SurveyStatus {
+  DRAFT
+  PUBLISHED
+  CLOSED
+}
+
+/// Utilisateur : nom + e-mail unique (auth sans mot de passe côté métier — Better Auth peut étendre plus tard)
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  createdSurveys Survey[]
+  votes          Vote[]
+
+  @@map("users")
+}
+
+/// Sondage : créateur = organisateur (createdById). Bascule résultats agrégés pour tous = resultsPublic
+model Survey {
+  id              String       @id @default(cuid())
+  title           String
+  status          SurveyStatus @default(DRAFT)
+  /// Fin de période de vote (obligatoire une fois publié — contrôlé côté app si besoin)
+  endsAt          DateTime?
+  resultsPublic   Boolean      @default(false)
+  /// Horodatage optionnel de clôture explicite
+  closedAt        DateTime?
+  createdById     String
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  creator   User       @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  questions Question[]
+
+  @@index([createdById])
+  @@index([status])
+  @@map("surveys")
+}
+
+/// Question à choix unique ; plusieurs questions par sondage
+model Question {
+  id         String @id @default(cuid())
+  surveyId   String
+  wording    String
+  sortOrder  Int    @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  survey  Survey         @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+  options AnswerOption[]
+  votes   Vote[]
+
+  @@index([surveyId])
+  @@map("questions")
+}
+
+model AnswerOption {
+  id         String @id @default(cuid())
+  questionId String
+  label      String
+  sortOrder  Int    @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  votes    Vote[]
+
+  @@index([questionId])
+  @@map("answer_options")
+}
+
+/// Un vote par utilisateur et par question (choix unique)
+model Vote {
+  id         String   @id @default(cuid())
+  userId     String
+  questionId String
+  optionId   String
+  votedAt    DateTime @default(now())
+
+  user     User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  question Question     @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  option   AnswerOption @relation(fields: [optionId], references: [id], onDelete: Restrict)
+
+  @@unique([userId, questionId])
+  @@index([questionId])
+  @@index([optionId])
+  @@index([userId])
+  @@map("votes")
 }
