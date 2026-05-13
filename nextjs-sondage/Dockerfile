@@ -39,8 +39,9 @@ COPY --from=builder --chown=nextjs:nodejs /app/prisma.config.ts ./prisma.config.
 COPY --from=builder --chown=nextjs:nodejs /app/scripts/docker-entrypoint.sh ./docker-entrypoint.sh
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules/dotenv ./node_modules/dotenv
 
+# CLI Prisma dans l’image : migrate deploy au démarrage sans appeler le registre npm (Dokploy / réseau restreint).
 USER root
-RUN chmod +x /app/docker-entrypoint.sh
+RUN npm install -g prisma@7.8.0 && chmod +x /app/docker-entrypoint.sh
 USER nextjs
 
 EXPOSE 3000

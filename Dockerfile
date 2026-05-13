@@ -39,7 +39,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/scripts/docker-entrypoint.sh ./do
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules/dotenv ./node_modules/dotenv
 
 USER root
-RUN chmod +x /app/docker-entrypoint.sh
+RUN npm install -g prisma@7.8.0 && chmod +x /app/docker-entrypoint.sh
 USER nextjs
 
 EXPOSE 3000
