@@ -19,6 +19,8 @@ export default async function NouveauSondagePage({
       "Titre et au moins deux options sont requis."
     : sp.error === "db" ?
       "Base de données indisponible."
+    : sp.error === "create" ?
+      "Impossible d’enregistrer le sondage (vérifiez la base et les logs serveur)."
     : null;
 
   return (

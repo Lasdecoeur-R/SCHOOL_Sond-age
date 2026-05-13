@@ -6,54 +6,78 @@ import { SurveyStatus } from "@/app/generated/prisma/client";
 import { getDemoCreatorId, getDemoVoterId } from "@/lib/demo-users";
 import { getPrisma } from "@/lib/prisma";
 
-export async function createSurveyFromForm(formData: FormData) {
+/** Données sérialisables : évite FormData + champs contrôlés React (options souvent vides côté serveur). */
+export type CreateSurveyPayload = {
+  title: string;
+  description: string;
+  /** Valeur brute `<input type="date">` (`yyyy-mm-dd`) ou chaîne vide */
+  endsAt: string | null;
+  /** Si true, résultats non publics (équivalent checkbox « Sondage privé ») */
+  resultsPrivate: boolean;
+  options: string[];
+};
+
+function parseEndsAt(raw: string | null): Date | null {
+  const t = raw?.trim();
+  if (!t) return null;
+  const d = new Date(t);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+export async function createSurveyAction(payload: CreateSurveyPayload) {
   const prisma = getPrisma();
   if (!prisma) {
     redirect("/sondages/nouveau?error=db");
   }
 
-  const title = String(formData.get("title") ?? "").trim();
-  const description = String(formData.get("description") ?? "").trim();
-  const endsRaw = String(formData.get("endsAt") ?? "").trim();
-  const privateSurvey = formData.get("private") === "on";
-  const optionEntries = formData.getAll("option").map((v) => String(v).trim()).filter(Boolean);
+  const title = payload.title.trim();
+  const description = (payload.description ?? "").trim();
+  const optionEntries = (payload.options ?? []).map((o) => String(o).trim()).filter(Boolean);
 
   if (!title || optionEntries.length < 2) {
     redirect("/sondages/nouveau?error=validation");
   }
 
-  const endsAt = endsRaw ? new Date(endsRaw) : null;
+  const endsAt = parseEndsAt(payload.endsAt ?? null);
+  const privateSurvey = Boolean(payload.resultsPrivate);
   const creatorId = await getDemoCreatorId(prisma);
   const wording = description ? `${title}\n\n${description}` : title;
 
-  const survey = await prisma.$transaction(async (tx) => {
-    const s = await tx.survey.create({
-      data: {
-        title,
-        status: SurveyStatus.PUBLISHED,
-        endsAt,
-        resultsPublic: !privateSurvey,
-        createdById: creatorId,
-      },
-    });
-    const question = await tx.question.create({
-      data: {
-        surveyId: s.id,
-        wording,
-        sortOrder: 0,
-      },
-    });
-    let order = 0;
-    for (const label of optionEntries) {
-      await tx.answerOption.create({
-        data: { questionId: question.id, label, sortOrder: order++ },
+  let surveyId: string;
+  try {
+    const survey = await prisma.$transaction(async (tx) => {
+      const s = await tx.survey.create({
+        data: {
+          title,
+          status: SurveyStatus.PUBLISHED,
+          endsAt,
+          resultsPublic: !privateSurvey,
+          createdById: creatorId,
+        },
       });
-    }
-    return s;
-  });
+      const question = await tx.question.create({
+        data: {
+          surveyId: s.id,
+          wording,
+          sortOrder: 0,
+        },
+      });
+      let order = 0;
+      for (const label of optionEntries) {
+        await tx.answerOption.create({
+          data: { questionId: question.id, label, sortOrder: order++ },
+        });
+      }
+      return s;
+    });
+    surveyId = survey.id;
+  } catch (err) {
+    console.error("[createSurveyAction]", err);
+    redirect("/sondages/nouveau?error=create");
+  }
 
   revalidatePath("/tableau-de-bord");
-  redirect(`/sondages/${survey.id}/resultats`);
+  redirect(`/sondages/${surveyId}/resultats`);
 }
 
 export async function castVoteAction(surveyId: string, questionId: string, optionId: string) {

@@ -1,15 +1,20 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState, useTransition } from "react";
 import { MaterialIcon } from "@/components/ui/material-icon";
 import { GlassPanel } from "@/components/ui/glass-panel";
-import { createSurveyFromForm } from "@/app/sondages/actions";
+import { createSurveyAction } from "@/app/sondages/actions";
 
 export function NewSurveyForm() {
   const [rows, setRows] = useState(() => ["", "", ""]);
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [endsAt, setEndsAt] = useState("");
+  const [resultsPrivate, setResultsPrivate] = useState(false);
+  const [isPending, startTransition] = useTransition();
 
   const filledCount = useMemo(() => rows.map((r) => r.trim()).filter(Boolean).length, [rows]);
-  const canSubmit = filledCount >= 2;
+  const canSubmit = Boolean(title.trim()) && filledCount >= 2;
 
   const setRow = useCallback((i: number, v: string) => {
     setRows((prev) => prev.map((x, j) => (j === i ? v : x)));
@@ -23,8 +28,23 @@ export function NewSurveyForm() {
     setRows((prev) => (prev.length <= 2 ? prev : prev.filter((_, j) => j !== i)));
   }, []);
 
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const options = rows.map((r) => r.trim()).filter(Boolean);
+    if (!title.trim() || options.length < 2) return;
+    startTransition(() => {
+      void createSurveyAction({
+        title: title.trim(),
+        description: description.trim(),
+        endsAt: endsAt.trim() || null,
+        resultsPrivate,
+        options,
+      });
+    });
+  };
+
   return (
-    <form action={createSurveyFromForm} className="mx-auto max-w-4xl space-y-10 px-8 py-10">
+    <form onSubmit={handleSubmit} className="mx-auto max-w-4xl space-y-10 px-8 py-10">
       <div className="space-y-2">
         <h1 className="text-4xl font-bold text-primary md:text-5xl">Nouveau Sondage</h1>
         <p className="text-base text-secondary">Concevez votre questionnaire avec clarté et précision.</p>
@@ -44,6 +64,8 @@ export function NewSurveyForm() {
               id="title"
               name="title"
               required
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
               className="glass-input w-full rounded-lg px-4 py-2 text-on-surface outline-none placeholder:text-outline-variant"
               placeholder="Ex : Satisfaction trimestrielle Q4"
             />
@@ -56,6 +78,8 @@ export function NewSurveyForm() {
               id="description"
               name="description"
               rows={3}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
               className="glass-input w-full resize-none rounded-lg px-4 py-2 text-on-surface outline-none placeholder:text-outline-variant"
               placeholder="Expliquez brièvement l’objectif de ce sondage…"
             />
@@ -77,7 +101,6 @@ export function NewSurveyForm() {
           {rows.map((val, i) => (
             <div key={i} className="flex items-center gap-2">
               <input
-                name="option"
                 value={val}
                 onChange={(e) => setRow(i, e.target.value)}
                 className="glass-input min-w-0 flex-1 rounded-lg px-4 py-2 text-on-surface outline-none"
@@ -117,7 +140,14 @@ export function NewSurveyForm() {
               <p className="text-sm font-bold text-on-surface">Sondage privé</p>
               <p className="text-xs text-secondary">Résultats réservés aux organisateurs si coché</p>
             </label>
-            <input id="private" name="private" type="checkbox" className="h-5 w-5 rounded border-primary text-primary" />
+            <input
+              id="private"
+              name="private"
+              type="checkbox"
+              checked={resultsPrivate}
+              onChange={(e) => setResultsPrivate(e.target.checked)}
+              className="h-5 w-5 rounded border-primary text-primary"
+            />
           </div>
           <div className="space-y-1">
             <label htmlFor="endsAt" className="px-1 text-sm font-medium text-primary">
@@ -128,6 +158,8 @@ export function NewSurveyForm() {
                 id="endsAt"
                 name="endsAt"
                 type="date"
+                value={endsAt}
+                onChange={(e) => setEndsAt(e.target.value)}
                 className="glass-input w-full appearance-none rounded-lg px-4 py-2 pr-10 text-on-surface outline-none"
               />
               <MaterialIcon
@@ -156,10 +188,10 @@ export function NewSurveyForm() {
           </button>
           <button
             type="submit"
-            disabled={!canSubmit}
+            disabled={!canSubmit || isPending}
             className="flex-1 rounded-full bg-primary px-8 py-3 font-bold text-on-primary shadow-lg shadow-primary/20 transition-all hover:brightness-110 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 md:flex-none"
           >
-            Publier le sondage
+            {isPending ? "Publication…" : "Publier le sondage"}
           </button>
         </div>
       </div>
