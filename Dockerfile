@@ -21,7 +21,8 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY nextjs-sondage/ .
 ENV NEXT_TELEMETRY_DISABLED=1
-RUN npx prisma generate
+# generate n’appelle pas la base ; env() exige DATABASE_URL au chargement de prisma.config.ts
+RUN DATABASE_URL="postgresql://build:build@127.0.0.1:5432/build?schema=public" npx prisma generate
 RUN npm run build
 
 FROM base AS runner
@@ -44,10 +45,12 @@ COPY --from=builder --chown=nextjs:nodejs /app/scripts/docker-entrypoint.sh ./do
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules/dotenv ./node_modules/dotenv
 
 USER root
-# Même correctif bind que nextjs-sondage/Dockerfile (voir commentaire dans ce fichier).
+# Même correctif bind + paquet `prisma` local pour prisma.config.ts (voir nextjs-sondage/Dockerfile).
 RUN sed -i "s#const hostname = process.env.HOSTNAME || '0.0.0.0'#const hostname = '0.0.0.0'#" /app/server.js \
+  && npm install prisma@7.8.0 --no-save --omit=dev --prefix /app \
   && npm install -g prisma@7.8.0 \
-  && chmod +x /app/docker-entrypoint.sh
+  && chmod +x /app/docker-entrypoint.sh \
+  && chown -R nextjs:nodejs /app/node_modules
 USER nextjs
 
 EXPOSE 3000

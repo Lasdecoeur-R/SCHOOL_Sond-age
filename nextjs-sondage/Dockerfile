@@ -13,8 +13,8 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
-# generate ne nécessite pas une DB joignable
-RUN npx prisma generate
+# generate n’appelle pas la base ; env() exige DATABASE_URL au chargement de prisma.config.ts
+RUN DATABASE_URL="postgresql://build:build@127.0.0.1:5432/build?schema=public" npx prisma generate
 RUN npm run build
 
 FROM base AS runner
@@ -39,13 +39,16 @@ COPY --from=builder --chown=nextjs:nodejs /app/prisma.config.ts ./prisma.config.
 COPY --from=builder --chown=nextjs:nodejs /app/scripts/docker-entrypoint.sh ./docker-entrypoint.sh
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules/dotenv ./node_modules/dotenv
 
-# CLI Prisma dans l’image : migrate deploy au démarrage sans appeler le registre npm (Dokploy / réseau restreint).
+# CLI Prisma : global pour `prisma migrate` + paquet local dans /app/node_modules pour que
+# prisma.config.ts puisse résoudre `prisma/config` (absent du trace Next standalone).
 USER root
 # Next standalone : `const hostname = process.env.HOSTNAME || …` — K8s/Dokploy
 # injectent HOSTNAME (nom du pod) et écrasent l’ENV de l’image → écoute injoignable → 502.
 RUN sed -i "s#const hostname = process.env.HOSTNAME || '0.0.0.0'#const hostname = '0.0.0.0'#" /app/server.js \
+  && npm install prisma@7.8.0 --no-save --omit=dev --prefix /app \
   && npm install -g prisma@7.8.0 \
-  && chmod +x /app/docker-entrypoint.sh
+  && chmod +x /app/docker-entrypoint.sh \
+  && chown -R nextjs:nodejs /app/node_modules
 USER nextjs
 
 EXPOSE 3000
