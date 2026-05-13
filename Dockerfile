@@ -44,7 +44,10 @@ COPY --from=builder --chown=nextjs:nodejs /app/scripts/docker-entrypoint.sh ./do
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules/dotenv ./node_modules/dotenv
 
 USER root
-RUN npm install -g prisma@7.8.0 && chmod +x /app/docker-entrypoint.sh
+# Même correctif bind que nextjs-sondage/Dockerfile (voir commentaire dans ce fichier).
+RUN sed -i "s|const hostname = process.env.HOSTNAME || '0.0.0.0'|const hostname = '0.0.0.0'|" /app/server.js \
+  && npm install -g prisma@7.8.0 \
+  && chmod +x /app/docker-entrypoint.sh
 USER nextjs
 
 EXPOSE 3000
